@@ -370,3 +370,60 @@ func reconcile(
     return nil
 }
 
+
+
+func main() {
+    log.Println("Starting oVirt PVC controller")
+
+    config, err := rest.InClusterConfig()
+    if err != nil {
+        log.Fatalf("Kubernetes in-cluster config: %v", err)
+    }
+
+    kube, err := kubernetes.NewForConfig(config)
+    if err != nil {
+        log.Fatalf("Create Kubernetes client: %v", err)
+    }
+
+    ovirt, err := NewOVirtClient()
+    if err != nil {
+        log.Fatalf("Create oVirt client: %v", err)
+    }
+
+    interval := 60 * time.Second
+
+    if value := os.Getenv("RESYNC_INTERVAL"); value != "" {
+        parsed, err := time.ParseDuration(value)
+        if err != nil || parsed <= 0 {
+            log.Fatalf("Invalid RESYNC_INTERVAL: %s", value)
+        }
+        interval = parsed
+    }
+
+    log.Printf("Controller configuration: resync interval=%s", interval)
+
+    ctx, cancel := context.WithCancel(context.Background())
+    defer cancel()
+
+    ticker := time.NewTicker(interval)
+    defer ticker.Stop()
+
+    for {
+        log.Println("Starting reconciliation")
+
+        if err := reconcile(ctx, kube, ovirt); err != nil {
+            log.Printf("Reconciliation error: %v", err)
+        }
+
+        log.Printf("Next reconciliation in %s", interval)
+
+        select {
+        case <-ctx.Done():
+            log.Println("Controller stopped")
+            return
+        case <-ticker.C:
+        }
+    }
+}
+
+
