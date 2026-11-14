@@ -1,0 +1,57 @@
+deploymentName: ovirt-pvc-description
+namespace: ovirt-csi
+
+image:
+  repository: repoimage
+  tag: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+credentialsSecret:
+  name: ovirt-csi-creds
+  keys:
+    url: ovirt_url
+    username: ovirt_username
+    password: ovirt_password
+    insecure: ovirt_insecure
+
+env:
+  caFile: /etc/ovirt-ca/ca.crt
+  resyncInterval: "1h"
+  descriptionPrefix: "Kubernetes"
+
+caConfigMap:
+  name: ovirt-csi-ca.crt
+  key: ca.crt
+  path: ca.crt
+  mountPath: /etc/ovirt-ca
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 65532
+  capabilities:
+    drop:
+      - ALL
+
+podAnnotations: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
