@@ -1,0 +1,6 @@
+apiVersion: v2
+name: ovirt-pvc-description
+description: Kontroler uzupełniający opisy dysków oVirt na podstawie PVC z Kubernetes
+type: application
+version: __tag__
+appVersion: "__tag__"

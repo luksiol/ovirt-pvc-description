@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ovirt-pvc-description.name" . }}
+  namespace: {{ include "ovirt-pvc-description.namespace" . }}
+  labels:
+    {{- include "ovirt-pvc-description.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "ovirt-pvc-description.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ovirt-pvc-description.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "ovirt-pvc-description.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: controller
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: OVIRT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentialsSecret.name }}
+                  key: {{ .Values.credentialsSecret.keys.url }}
+            - name: OVIRT_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentialsSecret.name }}
+                  key: {{ .Values.credentialsSecret.keys.username }}
+            - name: OVIRT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentialsSecret.name }}
+                  key: {{ .Values.credentialsSecret.keys.password }}
+            - name: OVIRT_INSECURE_SKIP_VERIFY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.credentialsSecret.name }}
+                  key: {{ .Values.credentialsSecret.keys.insecure }}
+            - name: OVIRT_CA_FILE
+              value: {{ .Values.env.caFile | quote }}
+            - name: RESYNC_INTERVAL
+              value: {{ .Values.env.resyncInterval | quote }}
+            - name: DESCRIPTION_PREFIX
+              value: {{ .Values.env.descriptionPrefix | quote }}
+          volumeMounts:
+            - name: ovirt-ca
+              mountPath: {{ .Values.caConfigMap.mountPath }}
+              readOnly: true
+          {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: ovirt-ca
+          configMap:
+            name: {{ .Values.caConfigMap.name }}
+            optional: true
+            items:
+              - key: {{ .Values.caConfigMap.key }}
+                path: {{ .Values.caConfigMap.path }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
