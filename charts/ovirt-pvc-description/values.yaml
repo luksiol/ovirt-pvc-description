@@ -20,6 +20,11 @@ env:
   caFile: /etc/ovirt-ca/ca.crt
   resyncInterval: "1h"
   descriptionPrefix: "Kubernetes"
+  # Mode:
+  #   description              - description
+  #   description_with_labels  - description and labels
+  #   labels                   - only labels
+  descriptionMode: "description"
 
 caConfigMap:
   name: ovirt-csi-ca.crt

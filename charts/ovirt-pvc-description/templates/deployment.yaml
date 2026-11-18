@@ -55,6 +55,8 @@ spec:
               value: {{ .Values.env.resyncInterval | quote }}
             - name: DESCRIPTION_PREFIX
               value: {{ .Values.env.descriptionPrefix | quote }}
+            - name: DESCRIPTION_MODE
+              value: {{ .Values.env.descriptionMode | quote }}
           volumeMounts:
             - name: ovirt-ca
               mountPath: {{ .Values.caConfigMap.mountPath }}
