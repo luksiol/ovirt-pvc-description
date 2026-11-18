@@ -23,6 +23,7 @@ namespace: "ovirt-csi-system"
 env:
   resyncInterval: "5m"
   descriptionPrefix: "k3-pvc-mycluster"
+  descriptionMode: "description_with_labels"
 
 credentialsSecret:
   name: "ovirt-csi-creds-prod"
