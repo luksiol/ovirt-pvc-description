@@ -41,7 +41,7 @@ jobs:
           retention-days: 1
 
   docker-build:
-    if: github.ref_type == 'branch'
+    if: github.ref_type == 'branch' && github.ref_name == 'main'
     needs: go-dependencies
     runs-on: ubuntu-latest
     steps:
@@ -67,7 +67,7 @@ jobs:
           tags: ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
   docker-build-push:
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || github.ref_name != 'main'
     needs: go-dependencies
     runs-on: ubuntu-latest
     permissions:
@@ -108,7 +108,7 @@ jobs:
         run: docker logout "$REGISTRY" || true
 
   helm-push:
-    if: github.ref_type == 'tag'
+    if: github.ref_type == 'tag' || github.ref_name != 'main'
     needs: docker-build-push
     runs-on: ubuntu-latest
     permissions:
