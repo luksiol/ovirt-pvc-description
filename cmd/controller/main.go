@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -12,6 +11,7 @@ import (
     "net/http"
     "net/url"
     "os"
+    "sort"
     "strings"
     "time"
 
@@ -19,6 +19,13 @@ import (
     metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
     "k8s.io/client-go/kubernetes"
     "k8s.io/client-go/rest"
+)
+
+// Dozwolone wartości zmiennej DESCRIPTION_MODE.
+const (
+    modeDescription           = "description"
+    modeDescriptionWithLabels = "description_with_labels"
+    modeLabels                = "labels"
 )
 
 // Disk represents an oVirt disk.
@@ -200,11 +207,64 @@ func (o *OVirtClient) UpdateDescription(
     return nil
 }
 
+// parseDescriptionMode reads DESCRIPTION_MODE and validates it.
+// An empty value means the default mode: "description".
+func parseDescriptionMode() (string, error) {
+    mode := strings.ToLower(strings.TrimSpace(os.Getenv("DESCRIPTION_MODE")))
+
+    switch mode {
+    case "":
+        return modeDescription, nil
+    case modeDescription, modeDescriptionWithLabels, modeLabels:
+        return mode, nil
+    default:
+        return "", fmt.Errorf(
+            "invalid DESCRIPTION_MODE %q (allowed: %s, %s, %s)",
+            mode,
+            modeDescription,
+            modeDescriptionWithLabels,
+            modeLabels,
+        )
+    }
+}
+
+// formatLabels returns labels as a sorted "key=value,key=value" string.
+// Sorting is required because Go map iteration order is random, and without
+// it the description would change on every reconciliation.
+func formatLabels(labels map[string]string) string {
+    if len(labels) == 0 {
+        return "none"
+    }
+
+    keys := make([]string, 0, len(labels))
+    for k := range labels {
+        keys = append(keys, k)
+    }
+    sort.Strings(keys)
+
+    parts := make([]string, 0, len(keys))
+    for _, k := range keys {
+        parts = append(parts, k+"="+labels[k])
+    }
+
+    return strings.Join(parts, ",")
+}
+
 // desiredDescription creates the description that should be stored in oVirt.
 func desiredDescription(
+    mode string,
     pv *corev1.PersistentVolume,
     pvc *corev1.PersistentVolumeClaim,
 ) string {
+    // Tryb "labels": tylko labelki PVC.
+    // Jeśli PVC już nie istnieje, nie da się odczytać jego labelek.
+    if mode == modeLabels {
+        if pvc == nil {
+            return "none"
+        }
+        return formatLabels(pvc.Labels)
+    }
+
     storageClass := pv.Spec.StorageClassName
     if storageClass == "" {
         storageClass = "none"
@@ -228,8 +288,8 @@ func desiredDescription(
     descprefix := os.Getenv("DESCRIPTION_PREFIX")
     updateTime := time.Now().Format(time.RFC3339)
 
-    return fmt.Sprintf(
-        "%s | Namespace: %s | PVC: %s | PVC Status: %s | PV: %s | PV Status: %s | StorageClass: %s | Last update: %s",
+    description := fmt.Sprintf(
+        "%s | Namespace: %s | PVC: %s | PVC Status: %s | PV: %s | PV Status: %s | StorageClass: %s",
         descprefix,
         pvcNamespace,
         pvcName,
@@ -237,18 +297,26 @@ func desiredDescription(
         pv.Name,
         pv.Status.Phase,
         storageClass,
-        updateTime,
     )
+
+    // Tryb "description_with_labels": dokładamy labelki PVC.
+    if mode == modeDescriptionWithLabels {
+        labels := "none"
+        if pvc != nil {
+            labels = formatLabels(pvc.Labels)
+        }
+        description += " | PVC Labels: " + labels
+    }
+
+    return description + " | Last update: " + updateTime
 }
 
-
-
 // reconcile synchronizes Kubernetes PVCs with oVirt disks.
-
 func reconcile(
     ctx context.Context,
     kube kubernetes.Interface,
     ovirt *OVirtClient,
+    mode string,
 ) error {
     pvcs, err := kube.CoreV1().PersistentVolumeClaims("").List(
         ctx,
@@ -329,7 +397,7 @@ func reconcile(
             continue
         }
 
-        description := desiredDescription(pv, pvc)
+        description := desiredDescription(mode, pv, pvc)
 
         if disk.Description == description {
             unchanged++
@@ -370,8 +438,6 @@ func reconcile(
     return nil
 }
 
-
-
 func main() {
     log.Println("Starting oVirt PVC controller")
 
@@ -390,6 +456,11 @@ func main() {
         log.Fatalf("Create oVirt client: %v", err)
     }
 
+    mode, err := parseDescriptionMode()
+    if err != nil {
+        log.Fatalf("%v", err)
+    }
+
     interval := 60 * time.Second
 
     if value := os.Getenv("RESYNC_INTERVAL"); value != "" {
@@ -400,7 +471,11 @@ func main() {
         interval = parsed
     }
 
-    log.Printf("Controller configuration: resync interval=%s", interval)
+    log.Printf(
+        "Controller configuration: resync interval=%s, description mode=%s",
+        interval,
+        mode,
+    )
 
     ctx, cancel := context.WithCancel(context.Background())
     defer cancel()
@@ -411,7 +486,7 @@ func main() {
     for {
         log.Println("Starting reconciliation")
 
-        if err := reconcile(ctx, kube, ovirt); err != nil {
+        if err := reconcile(ctx, kube, ovirt, mode); err != nil {
             log.Printf("Reconciliation error: %v", err)
         }
 
@@ -425,5 +500,4 @@ func main() {
         }
     }
 }
-
 
