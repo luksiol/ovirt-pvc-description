@@ -18,7 +18,6 @@ It should use existing secrets and configmap from ovirtcsi, but not all options 
 
 ```yaml
 deploymentName: "ovirt-pvc-description"
-namespace: "ovirt-csi-system"
 
 env:
   resyncInterval: "5m"
