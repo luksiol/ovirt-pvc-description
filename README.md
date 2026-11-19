@@ -17,19 +17,19 @@ It should use existing secrets and configmap from ovirtcsi, but not all options 
 ### 1. Create a `values.yaml` file with your configuration:
 
 ```yaml
-deploymentName: "ovirt-pvc-description-prod"
+deploymentName: "ovirt-pvc-description"
 namespace: "ovirt-csi-system"
 
 env:
   resyncInterval: "5m"
   descriptionPrefix: "k3-pvc-mycluster"
-  descriptionMode: "description_with_labels"
+  descriptionMode: "description_with_labels"   # [ description | description_with_labels | labels ]
 
 credentialsSecret:
-  name: "ovirt-csi-creds-prod"
+  name: "ovirt-csi-creds"
 
 caConfigMap:
-  name: "ovirt-csi-ca-prod.crt"
+  name: "ovirt-csi-ca.crt"
 
 # Optional: run on control-plane nodes
 nodeSelector:
@@ -42,10 +42,11 @@ tolerations:
 
 ### 2. Install the chart from GHCR:
 
+Namespace should exists after ovirt-csi installation.
+
 ```bash
 helm install ovirt-pvc-description oci://ghcr.io/luksiol/ovirt-pvc-description/charts/ovirt-pvc-description \
   --version <version> \
-  --namespace ovirt-csi-system \
-  --create-namespace \
+  --namespace ovirt-csi \
   -f values.yaml
 ```
